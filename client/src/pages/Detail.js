@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from '@apollo/react-hooks';
-import { useStoreContext } from '../utils/GlobalState';
+// import { useStoreContext } from '../utils/GlobalState';
 import {
   REMOVE_FROM_CART,
   UPDATE_CART_QUANTITY,
@@ -12,10 +12,12 @@ import Cart from '../components/Cart';
 import { QUERY_PRODUCTS } from "../utils/queries";
 import spinner from '../assets/spinner.gif'
 import { idbPromise } from '../utils/helpers';
+import store from '../utils/store';
 
 function Detail() {
 
-  const [state, dispatch] = useStoreContext();
+  // const [state, dispatch] = useStoreContext();
+  const state = store.getState();
 
   const { id } = useParams();
 
@@ -24,33 +26,52 @@ function Detail() {
   const { loading, data } = useQuery(QUERY_PRODUCTS);
 
   const { products, cart } = state;
-  
-  useEffect(() => {
-    if (products.length) {
-      setCurrentProduct(products.find(product => product._id === id));
-    } else if (data) {
-      dispatch({
+
+  if (products.length) {
+    setCurrentProduct(products.find(product => product._id === id));
+  } else if (data) {
+    store.dispatch({
+      type: UPDATE_PRODUCTS,
+      products: data.products
+    });
+    data.products.forEach((product) => {
+      idbPromise('products', 'put', product);
+    });
+  } else if (!loading) {
+    idbPromise('products', 'get').then((indexedProducts) => {
+      store.dispatch({
         type: UPDATE_PRODUCTS,
-        products: data.products
+        products: indexedProducts
       });
-      data.products.forEach((product) => {
-        idbPromise('products', 'put', product);
-      });
-    } else if (!loading) {
-      idbPromise('products', 'get').then((indexedProducts) => {
-        dispatch({
-          type: UPDATE_PRODUCTS,
-          products: indexedProducts
-        });
-      });
-    }
-  }, [products, data, loading, dispatch, id]);
+    });
+  }
+  
+  // useEffect(() => {
+  //   if (products.length) {
+  //     setCurrentProduct(products.find(product => product._id === id));
+  //   } else if (data) {
+  //     dispatch({
+  //       type: UPDATE_PRODUCTS,
+  //       products: data.products
+  //     });
+  //     data.products.forEach((product) => {
+  //       idbPromise('products', 'put', product);
+  //     });
+  //   } else if (!loading) {
+  //     idbPromise('products', 'get').then((indexedProducts) => {
+  //       dispatch({
+  //         type: UPDATE_PRODUCTS,
+  //         products: indexedProducts
+  //       });
+  //     });
+  //   }
+  // }, [products, data, loading, dispatch, id]);
 
   const addToCart = () => {
     const itemInCart = cart.find((cartItem) => cartItem._id === id);
   
     if (itemInCart) {
-      dispatch({
+      store.dispatch({
         type: UPDATE_CART_QUANTITY,
         _id: id,
         purchaseQuantity: parseInt(itemInCart.purchaseQuantity) + 1
@@ -60,7 +81,7 @@ function Detail() {
         purchaseQuantity: parseInt(itemInCart.purchaseQuantity) + 1
       });
     } else {
-      dispatch({
+      store.dispatch({
         type: ADD_TO_CART,
         product: { ...currentProduct, purchaseQuantity: 1 }
       });
@@ -69,7 +90,7 @@ function Detail() {
   };
 
   const removeFromCart = () => {
-    dispatch({
+    store.dispatch({
       type: REMOVE_FROM_CART,
       _id: currentProduct._id
     });
